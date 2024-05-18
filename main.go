@@ -20,6 +20,7 @@ func main() {
 	for gg.MainLoop() {
 		gg.DrawBoard()
 		gg.GetCommand()
+		gg.ResolveCommand()
 		gg.DetermineResult()
 		gg.ShowResult()
 	}
@@ -50,6 +51,7 @@ type GG struct {
 	// Game logic properties.
 	gameInProgress bool
 	board          GGBoard
+	commandStack   *GGCommandStack
 
 	// Ancillary dependencies.
 	logger *log.Logger
@@ -64,20 +66,37 @@ type GGBoard [rows][files]GGSquare
 // GGSquare represents a square on the game board.
 type GGSquare struct{}
 
-// NewGG initializes a new GG instance.
-func NewGG(logger *log.Logger, in Input, out Output, gui GUI) *GG {
-	var board GGBoard
+// GGCommandStack is an append-only, head-only read store for player commands.
+type GGCommandStack struct {
+	commands []string
+}
 
-	for i := 0; i < rows; i++ {
-		for j := 0; j < files; j++ {
-			board[i][j] = GGSquare{}
-		}
+// Append appends the given command to the stack.
+func (s *GGCommandStack) Append(cmd string) {
+	s.commands = append(s.commands, cmd)
+}
+
+// Clear resets the stack.
+func (s *GGCommandStack) Clear() {
+	s.commands = []string{}
+}
+
+// Read returns the head of the stack, an empty string if the stack is empty.
+func (s *GGCommandStack) Read() string {
+	if len(s.commands) == 0 {
+		return ""
 	}
 
+	return s.commands[len(s.commands)-1]
+}
+
+// NewGG initializes a new GG instance.
+func NewGG(logger *log.Logger, in Input, out Output, gui GUI) *GG {
 	return &GG{
 		// Game logic properties.
 		gameInProgress: false,
-		board:          board,
+		board:          GGBoard{},
+		commandStack:   &GGCommandStack{},
 
 		// Ancillary dependencies.
 		logger: logger,
@@ -109,16 +128,19 @@ func (g *GG) DrawBoard() {
 	g.gui.Draw(g.board)
 }
 
-// GetCommand fetches the next player's command and invokes an appropriate handler.
+// GetCommand fetches the next player's command and stores it into the command stack.
 func (g *GG) GetCommand() {
 	g.logger.Println("fetching player command.")
 
 	g.out.Write("Enter command: ")
 	cmd := g.in.Read()
+	g.commandStack.Append(cmd)
+}
 
-	// TODO: Could perhaps be extracted to its own method since
-	//  it's technically not "GetCommand" related.
-	//  Also consider if it's better to use a map[string]func instead
+// ResolveCommand reads the last command and invokes the appropriate handler.
+func (g *GG) ResolveCommand() {
+	cmd := g.commandStack.Read()
+
 	switch cmd {
 	case cmdExit:
 		g.HandleExit()
@@ -219,6 +241,8 @@ func (g ConsoleGUI) Draw(board GGBoard) {
 	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 50)))
 	g.out.Write("Current game state:\n")
 
+	// TODO: Instead of using the rows/files index, use the actual board object
+	//  to make sure we're actually drawing the board.
 	// Draw actual board.
 	for i := rows; i >= 0; i-- {
 		// Draw top edge.

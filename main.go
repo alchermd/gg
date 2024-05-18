@@ -2,14 +2,23 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
 )
 
 func main() {
+	withLogs := flag.Bool("logs", false, "whether to show logs.")
+	flag.Parse()
+
 	logger := log.New(os.Stdout, "gg: ", log.LstdFlags|log.Lshortfile)
+	if !*withLogs {
+		logger.SetOutput(io.Discard)
+	}
+
 	in := NewStdinInput()
 	out := NewStdoutOutput()
 	gui := NewConsoleGUI(out)
@@ -245,9 +254,9 @@ func NewConsoleGUI(out *StdoutOutput) GUI {
 	return &ConsoleGUI{out: out}
 }
 
+// Draw draws the given board to the console.
 func (g ConsoleGUI) Draw(board GGBoard) {
 	// Draw header
-	g.out.Write("\n")
 	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 50)))
 	g.out.Write("Current game state:\n")
 

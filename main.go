@@ -241,18 +241,16 @@ func (g ConsoleGUI) Draw(board GGBoard) {
 	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 50)))
 	g.out.Write("Current game state:\n")
 
-	// TODO: Instead of using the rows/files index, use the actual board object
-	//  to make sure we're actually drawing the board.
 	// Draw actual board.
-	for i := rows; i >= 0; i-- {
+	for i := len(board); i >= 0; i-- {
 		// Draw top edge.
-		for j := 0; j < files; j++ {
+		for j := 0; j < len(board[i]); j++ {
 			g.out.Write(" ----")
 		}
 		g.out.Write("\n")
 
 		// Draw each square.
-		for j := 0; j < files; j++ {
+		for j := 0; j < len(board[i]); j++ {
 			// TODO: We should only show per-square coordinates when setting up the board.
 			g.out.Write(fmt.Sprintf("| %s ", squareAddressToCoordinates(j, i)))
 		}
@@ -260,7 +258,7 @@ func (g ConsoleGUI) Draw(board GGBoard) {
 
 		if i == 0 {
 			// Draw bottom edge.
-			for j := 0; j < files; j++ {
+			for j := 0; j < len(board[i]); j++ {
 				g.out.Write(" ----")
 			}
 			g.out.Write("\n")

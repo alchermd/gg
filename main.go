@@ -34,6 +34,7 @@ func main() {
 // ==============================================================================
 const (
 	// Commands.
+	cmdHelp    = "help"
 	cmdInvalid = "invalid"
 	cmdExit    = "exit"
 
@@ -144,6 +145,8 @@ func (g *GG) ResolveCommand() {
 	switch cmd {
 	case cmdExit:
 		g.HandleExit()
+	case cmdHelp:
+		g.HandleHelp()
 	default:
 		g.HandleInvalid()
 	}
@@ -178,6 +181,13 @@ func (g *GG) HandleExit() {
 // HandleInvalid handles a command not supported by the game.
 func (g *GG) HandleInvalid() {
 	fmt.Println("Invalid command.")
+}
+
+// HandleHelp shows the help message.
+func (g *GG) HandleHelp() {
+	g.out.Write("Available commands:\n")
+	g.out.Write("\t* help: Show this help message. \n")
+	g.out.Write("\t* exit: Exit the game. \n")
 }
 
 // ==============================================================================

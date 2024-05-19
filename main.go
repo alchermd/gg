@@ -141,6 +141,7 @@ type GGChallengeResult string
 // GGMoveType represents the type of a piece move.
 type GGMoveType string
 
+// To determines the type of the movement being made.
 func (s *GGSquare) To(targetSquare GGSquare) GGMoveType {
 	// Can't move an empty square.
 	if s.IsEmpty() {

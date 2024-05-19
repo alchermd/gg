@@ -235,8 +235,10 @@ func (g *GG) HandleInvalid() {
 // HandleHelp shows the help message.
 func (g *GG) HandleHelp() {
 	g.out.Write("Available commands:\n")
-	g.out.Write("\t* help: Show this help message. \n")
-	g.out.Write("\t* exit: Exit the game. \n")
+	g.out.Write("\t* SET: Set a piece into the board.\n")
+	g.out.Write("\t\t* Syntax: SET W|P COORD PIECECODE\n")
+	g.out.Write("\t* help: Show this help message.\n")
+	g.out.Write("\t* exit: Exit the game.\n")
 }
 
 // HandleSet parses the given command and places the piece into the given coordinates.
@@ -312,12 +314,14 @@ func NewConsoleGUI(out *StdoutOutput) GUI {
 
 // Draw draws the given board to the console.
 func (g ConsoleGUI) Draw(board GGBoard) {
+	// TODO: Fix the drawing logic. It draws the other way around.
 	// Draw header
-	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 50)))
-	g.out.Write("Current game state:\n")
+	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 80)))
 
 	// Draw actual board.
+	g.out.Write("\n")
 	for i := len(board) - 1; i >= 0; i-- {
+		g.out.Write("    ")
 		// Draw top edge.
 		for j := 0; j < len(board[i]); j++ {
 			g.out.Write(" -------")
@@ -325,6 +329,7 @@ func (g ConsoleGUI) Draw(board GGBoard) {
 		g.out.Write("\n")
 
 		// Draw each square.
+		g.out.Write("    ")
 		for j := 0; j < len(board[i]); j++ {
 			code := board[i][j].piece.code
 			if code == "" {
@@ -337,6 +342,7 @@ func (g ConsoleGUI) Draw(board GGBoard) {
 
 		if i == 0 {
 			// Draw bottom edge.
+			g.out.Write("    ")
 			for j := 0; j < len(board[i]); j++ {
 				g.out.Write(" -------")
 			}
@@ -345,7 +351,8 @@ func (g ConsoleGUI) Draw(board GGBoard) {
 	}
 
 	// Draw footer
-	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 50)))
+	g.out.Write("\n")
+	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 80)))
 	g.out.Write("\n")
 }
 

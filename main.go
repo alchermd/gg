@@ -57,6 +57,12 @@ const (
 	rows  = 8
 	files = 9
 
+	// Game states.
+	gamePreSetup   GGGameState = "PRE_SETUP"
+	gameSetup      GGGameState = "SETUP"
+	gameInProgress GGGameState = "IN_PROGRESS"
+	gameOver       GGGameState = "GAME_OVER"
+
 	// Pieces
 	fiveStarGeneral  GGPieceCode = "5*G"
 	fourStarGeneral  GGPieceCode = "4*G"
@@ -85,8 +91,8 @@ const (
 	resDraw            GGChallengeResult = "DRAW"
 
 	// Players
-	w GGPlayer = "W"
-	b GGPlayer = "B"
+	playerWhite GGPlayer = "W"
+	playerBlack GGPlayer = "B"
 )
 
 // ==============================================================================
@@ -105,9 +111,11 @@ var (
 // GG is the game application instance.
 type GG struct {
 	// Game logic properties.
-	gameInProgress bool
-	board          GGBoard
-	commandStack   *GGCommandStack
+	status       GGGameState
+	winner       GGPlayer
+	playerToMove GGPlayer
+	board        GGBoard
+	commandStack *GGCommandStack
 
 	// Ancillary dependencies.
 	logger *log.Logger
@@ -123,6 +131,9 @@ type GGBoard [rows][files]GGSquare
 type GGSquare struct {
 	piece GGPiece
 }
+
+// GGGameState represents the summary of the current game state.
+type GGGameState string
 
 // GGChallengeResult represents a result of a piece challenge.
 type GGChallengeResult string
@@ -195,6 +206,17 @@ type GGPieceCode string
 // GGPlayer represents a player (ex: "W" for the player with the White pieces).
 type GGPlayer string
 
+// String returns a user-friendly name of the player.
+func (p GGPlayer) String() string {
+	if p == playerWhite {
+		return "White"
+	} else if p == playerBlack {
+		return "Black"
+	}
+
+	return ""
+}
+
 // GGCommandStack is an append-only, head-only read store for player commands.
 type GGCommandStack struct {
 	commands []string
@@ -223,9 +245,10 @@ func (s *GGCommandStack) Read() string {
 func NewGG(logger *log.Logger, in Input, out Output, gui GUI) *GG {
 	return &GG{
 		// Game logic properties.
-		gameInProgress: false,
-		board:          GGBoard{},
-		commandStack:   &GGCommandStack{},
+		status:       gamePreSetup,
+		board:        GGBoard{},
+		commandStack: &GGCommandStack{},
+		playerToMove: playerWhite,
 
 		// Ancillary dependencies.
 		logger: logger,
@@ -239,7 +262,7 @@ func NewGG(logger *log.Logger, in Input, out Output, gui GUI) *GG {
 func (g *GG) Start() {
 	g.logger.Println("starting GG...")
 	g.HandleHelp()
-	g.gameInProgress = true
+	g.status = gameSetup
 }
 
 // Close terminates the game.
@@ -249,7 +272,7 @@ func (g *GG) Close() {
 
 // MainLoop is the game's main loop, returning whether the game is finished or not.
 func (g *GG) MainLoop() bool {
-	return g.gameInProgress
+	return g.status != gameOver
 }
 
 // DrawBoard displays a graphical representation of the current game state.
@@ -289,11 +312,47 @@ func (g *GG) ResolveCommand() {
 // DetermineResult calculates the game's result from the current game state.
 func (g *GG) DetermineResult() {
 	g.logger.Println("determining result.")
+
+	// Find both flags, and update the game status if one of them are not found.
+	if g.status == gameInProgress {
+		whiteFlagFound := false
+		blackFlagFound := false
+
+		for _, row := range g.board {
+			for _, square := range row {
+				if square.piece.code == flag {
+					if square.piece.player == playerWhite {
+						whiteFlagFound = true
+					} else if square.piece.player == playerBlack {
+						blackFlagFound = true
+					}
+				}
+			}
+		}
+
+		if whiteFlagFound && !blackFlagFound {
+			g.winner = playerWhite
+			g.status = gameOver
+		} else if blackFlagFound && !whiteFlagFound {
+			g.winner = playerBlack
+			g.status = gameOver
+		}
+	}
 }
 
 // ShowResult reports the "result" (i.e. what next step is needed) of the current game state.
 func (g *GG) ShowResult() {
 	g.logger.Println("showing result.")
+
+	g.out.Write(">>>>> ")
+	if g.status == gameSetup {
+		g.out.Write("Please setup the board.\n")
+	} else if g.status == gameInProgress {
+		g.out.Write(fmt.Sprintf("%s to move.\n", g.playerToMove))
+	} else if g.status == gameOver && g.winner != "" {
+		g.out.Write(fmt.Sprintf("%s wins!\n", g.winner))
+		g.out.Write(fmt.Sprintf("%s wins!\n", g.winner))
+	}
 }
 
 // Quit allows the game to execute any cleanup routines.
@@ -309,7 +368,7 @@ func (g *GG) Quit() {
 // HandleExit handles the "exit" command.
 func (g *GG) HandleExit() {
 	g.logger.Println("exiting game loop.")
-	g.gameInProgress = false
+	g.status = gameOver
 }
 
 // HandleInvalid handles a command not supported by the game.
@@ -363,6 +422,7 @@ func (g *GG) HandleLoadSample() {
 		g.HandleSet(currentLine)
 	}
 
+	g.status = gameInProgress
 	g.out.Write(fmt.Sprintf("File %s successfully loaded\n", f.Name()))
 }
 

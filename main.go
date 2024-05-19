@@ -437,13 +437,19 @@ func (g *GG) HandleMove(cmd string) {
 	toX, toY := coordinatesToSquareAddress(to)
 
 	if !isOneSquareAway(fromX, fromY, toX, toY) {
-		g.out.Write("Can only move one square at a time.\n")
+		g.out.Write("Invalid move: can only move one square at a time.\n")
 		return
 	}
 
 	// Create reference variables for convenience.
 	fromSquare := &g.board[fromX][fromY]
 	toSquare := &g.board[toX][toY]
+
+	if fromSquare.piece.player != g.playerToMove {
+		g.out.Write(fmt.Sprintf("Invalid move: it is %s's turn to move.\n", g.playerToMove))
+		return
+	}
+
 	moveType := fromSquare.To(*toSquare)
 
 	g.logger.Printf("Handling move type %v\n", moveType)
@@ -468,6 +474,15 @@ func (g *GG) HandleMove(cmd string) {
 		}
 	case moveInvalid:
 		g.out.Write("Invalid move.\n")
+	}
+
+	// Switch sides after every valid move.
+	if moveType != moveInvalid {
+		if g.playerToMove == playerWhite {
+			g.playerToMove = playerBlack
+		} else {
+			g.playerToMove = playerWhite
+		}
 	}
 }
 

@@ -338,6 +338,22 @@ func (g *GG) DetermineResult() {
 			g.status = gameOver
 		}
 	}
+
+	// Check the 8th rank for the white flag.
+	for _, square := range g.board[7] {
+		if square.piece.player == playerWhite && square.piece.code == flag {
+			g.status = gameOver
+			g.winner = playerWhite
+		}
+	}
+
+	// Check the 1st rank for the black flag.
+	for _, square := range g.board[0] {
+		if square.piece.player == playerBlack && square.piece.code == flag {
+			g.status = gameOver
+			g.winner = playerBlack
+		}
+	}
 }
 
 // ShowResult reports the "result" (i.e. what next step is needed) of the current game state.
@@ -350,7 +366,6 @@ func (g *GG) ShowResult() {
 	} else if g.status == gameInProgress {
 		g.out.Write(fmt.Sprintf("%s to move.\n", g.playerToMove))
 	} else if g.status == gameOver && g.winner != "" {
-		g.out.Write(fmt.Sprintf("%s wins!\n", g.winner))
 		g.out.Write(fmt.Sprintf("%s wins!\n", g.winner))
 	}
 }

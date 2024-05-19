@@ -160,6 +160,7 @@ func NewGG(logger *log.Logger, in Input, out Output, gui GUI) *GG {
 // Start kicks off any processes to start a GG game.
 func (g *GG) Start() {
 	g.logger.Println("starting GG...")
+	g.HandleHelp()
 	g.gameInProgress = true
 }
 
@@ -283,6 +284,8 @@ func (g *GG) HandleLoadSample() {
 
 		g.HandleSet(currentLine)
 	}
+
+	g.out.Write(fmt.Sprintf("File %s successfully loaded\n", f.Name()))
 }
 
 // ==============================================================================

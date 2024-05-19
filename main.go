@@ -45,9 +45,13 @@ func main() {
 // ==============================================================================
 const (
 	// Commands.
-	cmdHelp    = "help"
-	cmdInvalid = "invalid"
-	cmdExit    = "exit"
+	cmdHelp       = "help"
+	cmdInvalid    = "invalid"
+	cmdExit       = "exit"
+	cmdLoadSample = "loadsample"
+
+	// File paths.
+	sampleGggnFile = "setup.gggn"
 
 	// Board dimensions.
 	rows  = 8
@@ -194,6 +198,8 @@ func (g *GG) ResolveCommand() {
 		g.HandleExit()
 	} else if cmd == cmdHelp {
 		g.HandleHelp()
+	} else if cmd == cmdLoadSample {
+		g.HandleLoadSample()
 	} else if setCmdRegex.FindString(cmd) != "" {
 		g.HandleSet(cmd)
 	} else {
@@ -237,6 +243,7 @@ func (g *GG) HandleHelp() {
 	g.out.Write("Available commands:\n")
 	g.out.Write("\t* SET: Set a piece into the board.\n")
 	g.out.Write("\t\t* Syntax: SET W|P COORD PIECECODE\n")
+	g.out.Write("\t* loadsample: Loads a sample game file.\n")
 	g.out.Write("\t* help: Show this help message.\n")
 	g.out.Write("\t* exit: Exit the game.\n")
 }
@@ -253,6 +260,29 @@ func (g *GG) HandleSet(cmd string) {
 	piece := GGPiece{player: GGPlayer(player), code: GGPieceCode(pieceCode)}
 	g.board[x][y].piece = piece
 	g.logger.Printf("Player %v places %v on %v", player, pieceCode, coordinates)
+}
+
+// HandleLoadSample opens a sample .gggn file (GG Game notation) and executes the contents.
+func (g *GG) HandleLoadSample() {
+	f, _ := os.Open(sampleGggnFile)
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		currentLine := scanner.Text()
+
+		// Skip empty lines.
+		if currentLine == "" {
+			continue
+		}
+
+		// Ignore comments.
+		if currentLine[0] == '#' {
+			continue
+		}
+
+		g.HandleSet(currentLine)
+	}
 }
 
 // ==============================================================================

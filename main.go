@@ -80,6 +80,15 @@ const (
 )
 
 // ==============================================================================
+// GLOBALS
+// ==============================================================================
+var (
+	// Regexp
+	setCmdRegex = regexp.MustCompile(`^SET [WB] [ABCDEFGHI][12345678] .{3}$`)
+	mvCmdRegex  = regexp.MustCompile(`^MV [ABCDEFGHI][12345678] [ABCDEFGHI][12345678]$`)
+)
+
+// ==============================================================================
 // GG specific definitions and "main game" methods.
 // ==============================================================================
 
@@ -193,8 +202,6 @@ func (g *GG) GetCommand() {
 func (g *GG) ResolveCommand() {
 	cmd := g.commandStack.Read()
 
-	setCmdRegex := regexp.MustCompile(`^SET [WB] [ABCDEFGHI][12345678] .{3}$`)
-
 	if cmd == cmdExit {
 		g.HandleExit()
 	} else if cmd == cmdHelp {
@@ -203,6 +210,8 @@ func (g *GG) ResolveCommand() {
 		g.HandleLoadSample()
 	} else if setCmdRegex.FindString(cmd) != "" {
 		g.HandleSet(cmd)
+	} else if mvCmdRegex.FindString(cmd) != "" {
+		g.HandleMove(cmd)
 	} else {
 		g.HandleInvalid()
 	}
@@ -286,6 +295,28 @@ func (g *GG) HandleLoadSample() {
 	}
 
 	g.out.Write(fmt.Sprintf("File %s successfully loaded\n", f.Name()))
+}
+
+// HandleMove moves a piece into the target square.
+func (g *GG) HandleMove(cmd string) {
+	tokens := strings.Split(cmd, " ")
+	// TODO : Validate these inputs.
+	from := tokens[1]
+	to := tokens[2]
+
+	fromX, fromY := coordinatesToSquareAddress(from)
+	toX, toY := coordinatesToSquareAddress(to)
+
+	// Place the moving piece onto the target square
+	// Assume win for simplicity.
+	// TODO:
+	//  - Implement capture logic.
+	//  - Handle invalid moves (must only be 1 step per move, no out of bounds).
+	g.board[toX][toY].piece = g.board[fromX][fromY].piece
+	// Clear out the moving square
+	g.board[fromX][fromY].piece = GGPiece{}
+	// TODO: Take into account current player.
+	g.logger.Printf("Player ??? moves %v to %v", from, to)
 }
 
 // ==============================================================================

@@ -2,17 +2,19 @@ package main
 
 import (
 	"bufio"
-	"flag"
+	_flag "flag"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
 func main() {
-	withLogs := flag.Bool("logs", false, "whether to show logs.")
-	flag.Parse()
+	withLogs := _flag.Bool("logs", false, "whether to show logs.")
+	_flag.Parse()
 
 	logger := log.New(os.Stdout, "gg: ", log.LstdFlags|log.Lshortfile)
 	if !*withLogs {
@@ -50,6 +52,27 @@ const (
 	// Board dimensions.
 	rows  = 8
 	files = 9
+
+	// Pieces
+	fiveStarGeneral  GGPieceCode = "5*G"
+	fourStarGeneral  GGPieceCode = "4*G"
+	threeStarGeneral GGPieceCode = "3*G"
+	twoStarGeneral   GGPieceCode = "2*G"
+	oneStarGeneral   GGPieceCode = "1*G"
+	colonel          GGPieceCode = "COL"
+	ltColonel        GGPieceCode = "LTC"
+	major            GGPieceCode = "MAJ"
+	captain          GGPieceCode = "CPT"
+	firstLt          GGPieceCode = "1LT"
+	secondLt         GGPieceCode = "2LT"
+	sergeant         GGPieceCode = "SGT"
+	private          GGPieceCode = "PVT"
+	spy              GGPieceCode = "SPY"
+	flag             GGPieceCode = "FLG"
+
+	// Players
+	w GGPlayer = "W"
+	b GGPlayer = "B"
 )
 
 // ==============================================================================
@@ -74,7 +97,21 @@ type GG struct {
 type GGBoard [rows][files]GGSquare
 
 // GGSquare represents a square on the game board.
-type GGSquare struct{}
+type GGSquare struct {
+	piece GGPiece
+}
+
+// GGPiece represents a game piece.
+type GGPiece struct {
+	code   GGPieceCode
+	player GGPlayer
+}
+
+// GGPieceCode represents a piece code (ex: "FLG" for Flag).
+type GGPieceCode string
+
+// GGPlayer represents a player (ex: "W" for the player with the White pieces).
+type GGPlayer string
 
 // GGCommandStack is an append-only, head-only read store for player commands.
 type GGCommandStack struct {
@@ -151,12 +188,15 @@ func (g *GG) GetCommand() {
 func (g *GG) ResolveCommand() {
 	cmd := g.commandStack.Read()
 
-	switch cmd {
-	case cmdExit:
+	setCmdRegex := regexp.MustCompile(`^SET [WB] [ABCDEFGHI][12345678] .{3}$`)
+
+	if cmd == cmdExit {
 		g.HandleExit()
-	case cmdHelp:
+	} else if cmd == cmdHelp {
 		g.HandleHelp()
-	default:
+	} else if setCmdRegex.FindString(cmd) != "" {
+		g.HandleSet(cmd)
+	} else {
 		g.HandleInvalid()
 	}
 }
@@ -199,6 +239,20 @@ func (g *GG) HandleHelp() {
 	g.out.Write("\t* exit: Exit the game. \n")
 }
 
+// HandleSet parses the given command and places the piece into the given coordinates.
+func (g *GG) HandleSet(cmd string) {
+	tokens := strings.Split(cmd, " ")
+	// TODO : Validate these inputs.
+	player := tokens[1]
+	coordinates := tokens[2]
+	pieceCode := tokens[3]
+
+	x, y := coordinatesToSquareAddress(coordinates)
+	piece := GGPiece{player: GGPlayer(player), code: GGPieceCode(pieceCode)}
+	g.board[x][y].piece = piece
+	g.logger.Printf("Player %v places %v on %v", player, pieceCode, coordinates)
+}
+
 // ==============================================================================
 // IO definitions and methods. Used for managing input and output.
 // ==============================================================================
@@ -218,7 +272,9 @@ func (i *StdinInput) Read() string {
 	if err != nil {
 		return cmdInvalid
 	}
-	return strings.TrimSpace(cmd)
+	trimmedCmd := strings.TrimSpace(cmd)
+	singleSpacedCmd := strings.Join(strings.Fields(trimmedCmd), " ")
+	return singleSpacedCmd
 }
 
 // NewStdinInput initializes a new StdinInput.
@@ -261,24 +317,28 @@ func (g ConsoleGUI) Draw(board GGBoard) {
 	g.out.Write("Current game state:\n")
 
 	// Draw actual board.
-	for i := len(board); i >= 0; i-- {
+	for i := len(board) - 1; i >= 0; i-- {
 		// Draw top edge.
 		for j := 0; j < len(board[i]); j++ {
-			g.out.Write(" ----")
+			g.out.Write(" -------")
 		}
 		g.out.Write("\n")
 
 		// Draw each square.
 		for j := 0; j < len(board[i]); j++ {
-			// TODO: We should only show per-square coordinates when setting up the board.
-			g.out.Write(fmt.Sprintf("| %s ", squareAddressToCoordinates(j, i)))
+			code := board[i][j].piece.code
+			if code == "" {
+				g.out.Write("|       ")
+			} else {
+				g.out.Write(fmt.Sprintf("|  %s  ", code))
+			}
 		}
 		g.out.Write("|\n")
 
 		if i == 0 {
 			// Draw bottom edge.
 			for j := 0; j < len(board[i]); j++ {
-				g.out.Write(" ----")
+				g.out.Write(" -------")
 			}
 			g.out.Write("\n")
 		}
@@ -307,4 +367,24 @@ func squareAddressToCoordinates(x int, y int) string {
 
 	alpha := []string{"A", "B", "C", "D", "E", "F", "G", "H", "I"}
 	return fmt.Sprintf("%s%d", alpha[x], y+1)
+}
+
+// coordinatesToSquareAddress converts a coordinate string to its actual board index.
+// example: B7 -> (1, 6)
+func coordinatesToSquareAddress(coordinates string) (int, int) {
+	x := string(coordinates[0])
+	y, _ := strconv.Atoi(string(coordinates[1]))
+
+	xMap := map[string]int{
+		"A": 0,
+		"B": 1,
+		"C": 2,
+		"D": 3,
+		"E": 4,
+		"F": 5,
+		"G": 6,
+		"H": 7,
+	}
+
+	return xMap[x], y - 1
 }

@@ -74,6 +74,16 @@ const (
 	spy              GGPieceCode = "SPY"
 	flag             GGPieceCode = "FLG"
 
+	// Movements
+	moveMove      GGMoveType = "MOVE"
+	moveChallenge GGMoveType = "CHALLENGE"
+	moveInvalid   GGMoveType = "INVALID"
+
+	// Results
+	resChallengerWins  GGChallengeResult = "WIN"
+	resChallengerLoses GGChallengeResult = "LOSE"
+	resDraw            GGChallengeResult = "DRAW"
+
 	// Players
 	w GGPlayer = "W"
 	b GGPlayer = "B"
@@ -114,10 +124,69 @@ type GGSquare struct {
 	piece GGPiece
 }
 
+// GGChallengeResult represents a result of a piece challenge.
+type GGChallengeResult string
+
+// GGMoveType represents the type of a piece move.
+type GGMoveType string
+
+func (s *GGSquare) To(targetSquare GGSquare) GGMoveType {
+	// Can't move an empty square.
+	if s.IsEmpty() {
+		return moveInvalid
+	}
+
+	//	Can't challenge an allied piece.
+	if s.piece.player == targetSquare.piece.player {
+		return moveInvalid
+	}
+
+	// An empty target is a move, otherwise it's a challenge
+	if targetSquare.IsEmpty() {
+		return moveMove
+	}
+	return moveChallenge
+}
+
+// IsEmpty checks if the square is not occupied by a piece.
+func (s *GGSquare) IsEmpty() bool {
+	return s.piece == (GGPiece{})
+}
+
+// Clear replaces the current inhabitant piece with an empty one.
+func (s *GGSquare) Clear() {
+	s.piece = GGPiece{}
+}
+
 // GGPiece represents a game piece.
 type GGPiece struct {
 	code   GGPieceCode
 	player GGPlayer
+}
+
+// Power returns a numerical representation of a piece's strength.
+// Note that this does not account any special piece rules -- only use this
+// for determining results of a basic piece challenger.
+func (p GGPiece) Power() int {
+	piecePowerMap := map[GGPieceCode]int{
+		fiveStarGeneral:  12,
+		fourStarGeneral:  11,
+		threeStarGeneral: 10,
+		twoStarGeneral:   9,
+		oneStarGeneral:   8,
+		colonel:          7,
+		ltColonel:        6,
+		major:            5,
+		captain:          4,
+		firstLt:          3,
+		secondLt:         2,
+		sergeant:         1,
+		private:          0,
+		spy:              99,
+		flag:             -1,
+	}
+
+	return piecePowerMap[p.code]
 }
 
 // GGPieceCode represents a piece code (ex: "FLG" for Flag).
@@ -307,16 +376,39 @@ func (g *GG) HandleMove(cmd string) {
 	fromX, fromY := coordinatesToSquareAddress(from)
 	toX, toY := coordinatesToSquareAddress(to)
 
-	// Place the moving piece onto the target square
-	// Assume win for simplicity.
-	// TODO:
-	//  - Implement capture logic.
-	//  - Handle invalid moves (must only be 1 step per move, no out of bounds).
-	g.board[toX][toY].piece = g.board[fromX][fromY].piece
-	// Clear out the moving square
-	g.board[fromX][fromY].piece = GGPiece{}
-	// TODO: Take into account current player.
-	g.logger.Printf("Player ??? moves %v to %v", from, to)
+	if !isOneSquareAway(fromX, fromY, toX, toY) {
+		g.out.Write("Can only move one square at a time.\n")
+		return
+	}
+
+	// Create reference variables for convenience.
+	fromSquare := &g.board[fromX][fromY]
+	toSquare := &g.board[toX][toY]
+	moveType := fromSquare.To(*toSquare)
+
+	g.logger.Printf("Handling move type %v\n", moveType)
+	switch moveType {
+	case moveMove:
+		// Move to the target square and clear out the origin square.
+		toSquare.piece = fromSquare.piece
+		fromSquare.Clear()
+	case moveChallenge:
+		result := resolveChallenge(fromSquare.piece, toSquare.piece)
+		g.logger.Printf("%v vs %v: %v\n", fromSquare.piece.code, toSquare.piece.code, result)
+
+		switch result {
+		case resChallengerWins:
+			toSquare.piece = fromSquare.piece
+			fromSquare.Clear()
+		case resChallengerLoses:
+			fromSquare.Clear()
+		case resDraw:
+			fromSquare.Clear()
+			toSquare.Clear()
+		}
+	case moveInvalid:
+		g.out.Write("Invalid move.\n")
+	}
 }
 
 // ==============================================================================
@@ -458,4 +550,57 @@ func coordinatesToSquareAddress(coordinates string) (int, int) {
 	}
 
 	return rowNumber - 1, filesMap[fileName]
+}
+
+// resolveChallenge determines the result of a piece challenge.
+func resolveChallenge(challenger GGPiece, target GGPiece) GGChallengeResult {
+	// Flag can only win vs flag.
+	if challenger.code == flag {
+		if target.code == flag {
+			return resChallengerWins
+		}
+		return resChallengerLoses
+	}
+
+	// Check for draw, AFTER checking for Flag vs Flag.
+	if challenger.code == target.code {
+		return resDraw
+	}
+
+	// Spy only loses to privates.
+	if challenger.code == spy {
+		if target.code != private {
+			return resChallengerWins
+		}
+		return resChallengerLoses
+	}
+
+	// Privates only wins vs spies.
+	if challenger.code == private {
+		if target.code == spy {
+			return resChallengerWins
+		}
+		return resChallengerLoses
+	}
+
+	// All special pieces and draws are handled,
+	// The challenger at this point is a basic piece.
+
+	//	Basic pieces loses to Spies.
+	if target.code == spy {
+		return resChallengerLoses
+	}
+
+	if challenger.Power() > target.Power() {
+		return resChallengerWins
+	}
+	return resChallengerLoses
+}
+
+// isOneSquareAway checks if the two given coordinates are one square apart.
+func isOneSquareAway(fromX, fromY, toX, toY int) bool {
+	diffX := fromX - toX
+	diffY := fromY - toY
+
+	return diffX >= -1 && diffX <= 1 && diffY >= -1 && diffY <= 1
 }

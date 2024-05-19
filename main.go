@@ -314,7 +314,6 @@ func NewConsoleGUI(out *StdoutOutput) GUI {
 
 // Draw draws the given board to the console.
 func (g ConsoleGUI) Draw(board GGBoard) {
-	// TODO: Fix the drawing logic. It draws the other way around.
 	// Draw header
 	g.out.Write(fmt.Sprintf("%s\n", strings.Repeat("=", 80)))
 
@@ -379,10 +378,10 @@ func squareAddressToCoordinates(x int, y int) string {
 // coordinatesToSquareAddress converts a coordinate string to its actual board index.
 // example: B7 -> (1, 6)
 func coordinatesToSquareAddress(coordinates string) (int, int) {
-	x := string(coordinates[0])
-	y, _ := strconv.Atoi(string(coordinates[1]))
+	rowNumber, _ := strconv.Atoi(string(coordinates[1]))
+	fileName := string(coordinates[0])
 
-	xMap := map[string]int{
+	filesMap := map[string]int{
 		"A": 0,
 		"B": 1,
 		"C": 2,
@@ -391,7 +390,8 @@ func coordinatesToSquareAddress(coordinates string) (int, int) {
 		"F": 5,
 		"G": 6,
 		"H": 7,
+		"I": 8,
 	}
 
-	return xMap[x], y - 1
+	return rowNumber - 1, filesMap[fileName]
 }
